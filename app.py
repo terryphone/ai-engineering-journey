@@ -12,7 +12,7 @@ from economic_analyst import (
 
 # AI-powered chatbot
 from analyst_tools import ask_data_question
-
+from agent import run_agent
 
 # =====================================
 # 1. PAGE CONFIGURATION
@@ -227,25 +227,42 @@ if st.session_state.ai_report is not None:
 st.header("6. Ask Questions About the Data")
 
 st.caption(
-    "Ask AI questions about your "
-    "synthetic GDP dataset."
+    "Ask questions about your synthetic GDP dataset. "
+    "The assistant remembers the recent conversation."
 )
+
+
+def show_trace(trace):
+    """Show which tools the agent used, for transparency."""
+    if trace:
+        with st.expander(f"Tools used ({len(trace)})"):
+            for step in trace:
+                st.code(
+                    f"{step['tool']}({step['arguments']})\n"
+                    f"-> {step['result']}",
+                    language="text",
+                )
+
+
+if st.button("Clear conversation"):
+    st.session_state.chat_history = []
+    st.rerun()
 
 # Display previous messages
 for msg in st.session_state.chat_history:
-
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
+        show_trace(msg.get("trace", []))
 
-
-# Chat input
 question = st.chat_input(
-    "e.g. Which quarter had the highest growth?"
+    "e.g. What was the average YoY growth from 2026Q1 to 2026Q3?"
 )
 
 if question:
 
-    # Save user question
+    # Memory = everything said before this question
+    previous_messages = list(st.session_state.chat_history)
+
     st.session_state.chat_history.append({
         "role": "user",
         "content": question
@@ -254,26 +271,26 @@ if question:
     with st.chat_message("user"):
         st.write(question)
 
-    # Generate AI response
     with st.chat_message("assistant"):
-
-        with st.spinner(
-            "AI is analysing the data..."
-        ):
-
+        with st.spinner("AI is analysing the data..."):
+            trace, is_error = [], False
             try:
-                answer = ask_data_question(df, question)
-
+                answer, trace = run_agent(
+                    df, question, previous_messages
+                )
             except Exception as error:
                 answer = (
                     "Unable to answer the question. "
                     f"Details: {error}"
                 )
+                is_error = True
 
         st.write(answer)
+        show_trace(trace)
 
-    # Save assistant response
     st.session_state.chat_history.append({
         "role": "assistant",
-        "content": answer
+        "content": answer,
+        "trace": trace,
+        "is_error": is_error,
     })

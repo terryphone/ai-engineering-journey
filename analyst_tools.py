@@ -20,6 +20,52 @@ def build_tools(df: pd.DataFrame):
 
     data = data.set_index("Quarter")
 
+    def get_gdp_series() -> dict:
+        """Get GDP level and YoY growth for every quarter."""
+        return {
+            "series": [
+                {
+                    "quarter": q,
+                    "gdp": float(row["GDP"]),
+                    "yoy_growth_pct": (
+                        None if pd.isna(row["YoY_Growth"])
+                        else round(float(row["YoY_Growth"]), 2)
+                    ),
+                }
+                for q, row in data.iterrows()
+            ]
+        }
+
+    def average_yoy_growth(
+        start_quarter: str,
+        end_quarter: str
+    ) -> dict:
+        """Average YoY growth across a range of quarters (inclusive)."""
+
+        for q in (start_quarter, end_quarter):
+            if q not in data.index:
+                return {
+                    "error": f"Quarter {q} not found",
+                    "available": list(data.index)
+                }
+
+        window = data.loc[
+            start_quarter:end_quarter, "YoY_Growth"
+        ].dropna()
+
+        if window.empty:
+            return {
+                "error": "No YoY growth data in that range "
+                         "(check the order of the quarters)"
+            }
+
+        return {
+            "start": start_quarter,
+            "end": end_quarter,
+            "quarters_used": len(window),
+            "average_yoy_growth_pct": round(float(window.mean()), 2)
+        }
+    
     def list_quarters() -> dict:
         """List available quarters."""
         return {"quarters": list(data.index)}
@@ -113,6 +159,8 @@ def build_tools(df: pd.DataFrame):
 
     # Map function names to actual Python functions
     return {
+        "get_gdp_series": get_gdp_series,
+        "average_yoy_growth": average_yoy_growth,
         "list_quarters": list_quarters,
         "get_gdp": get_gdp,
         "get_yoy_growth": get_yoy_growth,
@@ -126,6 +174,39 @@ def build_tools(df: pd.DataFrame):
 # =====================================
 
 TOOLS = [
+        {
+        "type": "function",
+        "name": "get_gdp_series",
+        "description": (
+            "Get GDP level and YoY growth for every quarter "
+            "in one call."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False
+        },
+        "strict": True
+    },
+    {
+        "type": "function",
+        "name": "average_yoy_growth",
+        "description": (
+            "Average YoY GDP growth (%) across a range of "
+            "quarters, inclusive of both ends."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "start_quarter": {"type": "string"},
+                "end_quarter": {"type": "string"}
+            },
+            "required": ["start_quarter", "end_quarter"],
+            "additionalProperties": False
+        },
+        "strict": True
+    },
     {
         "type": "function",
         "name": "list_quarters",
