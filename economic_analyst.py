@@ -1,11 +1,13 @@
 
 import os
 import pandas as pd
-from google import genai
-from google.genai import types
+#from google import genai
+#from google.genai import types
+#from openai import OpenAI
+from ai_config import get_ai_client, MODEL_NAME
 from pydantic import BaseModel
 
-
+#MODEL_NAME = "gemini-3.8-flash"
 # =====================================
 # 1. DEFINE AI OUTPUT STRUCTURE
 # =====================================
@@ -109,71 +111,92 @@ def calculate_growth(df):
 # 4. GENERATE AI COMMENTARY
 # =====================================
 
+
+
 def generate_commentary(stats):
-    client = genai.Client()
+    client = get_ai_client()
 
     prompt = f"""
-    You are an economic analyst.
-
-    The following figures are synthetic.
+    Analyse the following synthetic GDP data.
 
     Latest quarter: {stats['quarter']}
     GDP level: {stats['gdp']}
     Latest YoY growth: {stats['growth']}%
 
     Previous quarter: {stats['previous_quarter']}
-    Previous YoY growth:
-    {stats['previous_growth']}%
+    Previous YoY growth: {stats['previous_growth']}%
 
     Change in YoY growth:
     {stats['growth_change']} percentage points.
 
     Write concise economic commentary.
 
-    Rules:
-    - Use only the figures provided.
-    - Compare the latest and previous growth.
+    Requirements:
+    - Use only the supplied figures.
+    - Compare the latest and previous growth rates.
     - Explain whether growth accelerated
       or decelerated.
     - Do not invent economic causes.
-    - Clearly state that data is synthetic.
+    - Clearly identify the data as synthetic.
+
+    Return a JSON object with exactly these fields:
+    quarter (string)
+    growth_rate (number)
+    previous_growth (number)
+    commentary (string)
+    key_observation (string)
+
+    Return only valid JSON, without Markdown.
     """
 
-    response = client.models.generate_content(
-        model="gemini-3.8-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=EconomicReport,
-        ),
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are an economic analyst. "
+                    "Return only valid JSON."
+                ),
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+        temperature=0,
     )
 
-    if not response.text:
-        raise ValueError("Gemini returned no text")
+    content = response.choices[0].message.content
 
+    if not content:
+        raise ValueError(
+            "Cerebras returned an empty response"
+        )
+
+    # Validate the returned JSON using Pydantic
     report = EconomicReport.model_validate_json(
-        response.text
+        content
     )
 
-    # Validate structured numerical fields
+    # Validate numerical results
     if report.quarter != stats["quarter"]:
-        raise ValueError("AI returned wrong quarter")
+        raise ValueError("Incorrect quarter returned")
 
     if abs(
         report.growth_rate - stats["growth"]
     ) > 0.01:
-        raise ValueError("AI returned wrong growth")
+        raise ValueError("Incorrect growth rate")
 
     if abs(
         report.previous_growth
         - stats["previous_growth"]
     ) > 0.01:
         raise ValueError(
-            "AI returned wrong previous growth"
+            "Incorrect previous growth rate"
         )
 
     return report
-
 
 # =====================================
 # 5. SAVE REPORT
