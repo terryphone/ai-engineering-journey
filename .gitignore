@@ -5,3 +5,4 @@ __pycache__/
 .streamlit/secrets.toml
 economic_report.txt
 gdp_commentary.txt
+chroma_db/
