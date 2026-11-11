@@ -7,30 +7,48 @@ REPORTS_DIR = Path(__file__).resolve().parent / "reports"
 INDEX_DIR = Path(__file__).resolve().parent / "chroma_db"
 COLLECTION_NAME = "economic_reports"
 MAX_RESULTS = 4
-
+MAX_CHUNK_CHARS = 1000  # short reports stay in one piece
 
 # =====================================
 # 1. SPLIT REPORTS INTO CHUNKS
 # =====================================
 
-def split_report(text: str, source: str) -> list[dict]:
-    """Split one report into chunks, one per paragraph."""
+def split_report(
+    text: str,
+    source: str,
+    max_chars: int = MAX_CHUNK_CHARS
+) -> list[dict]:
+    """
+    Split one report into chunks. Paragraphs are kept together until
+    a chunk would pass max_chars, so a short report stays whole and
+    a description is never separated from its cause.
+    """
     lines = text.strip().splitlines()
     title = lines[0].lstrip("# ").strip()
     body = "\n".join(lines[1:])
 
     paragraphs = [p.strip() for p in body.split("\n\n") if p.strip()]
 
+    pieces, current = [], ""
+    for paragraph in paragraphs:
+        if current and len(current) + len(paragraph) + 2 > max_chars:
+            pieces.append(current)
+            current = paragraph
+        else:
+            current = f"{current}\n\n{paragraph}" if current else paragraph
+    if current:
+        pieces.append(current)
+
     return [
         {
             "id": f"{source}#{i}",
             # The title is repeated in every chunk so it keeps its context
-            "text": f"{title}\n{paragraph}",
+            "text": f"{title}\n{piece}",
             "source": source,
             "title": title,
             "chunk": i,
         }
-        for i, paragraph in enumerate(paragraphs)
+        for i, piece in enumerate(pieces)
     ]
 
 

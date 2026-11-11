@@ -2,6 +2,7 @@ from agent_core import run_tool_agent
 from rag_tools import search_reports
 from sql_agent import SQL_TOOLS, SCHEMA_DESCRIPTION
 from sql_tools import run_sql_query
+from grounding import check_grounding
 
 REPORT_TOOLS = [
     {
@@ -79,9 +80,36 @@ Rules:
 - State clearly that the data and reports are synthetic.
 """
 
-
 def run_research_agent(question: str, history=None):
     """Answer a question using both the database and the reports."""
-    return run_tool_agent(
+    answer, trace = run_tool_agent(
         SYSTEM_PROMPT, TOOLS, FUNCTIONS, question, history
     )
+
+    problems = check_grounding(answer, trace)
+    if not problems:
+        return answer, trace
+
+    # One retry, telling the model exactly what was wrong
+    retry_question = (
+        f"{question}\n\n"
+        "Your previous answer failed a source check: "
+        + "; ".join(problems)
+        + ". Answer again. Quote and cite only passages returned by "
+        "search_reports. If the reports do not cover the question, "
+        "say so."
+    )
+    answer, retry_trace = run_tool_agent(
+        SYSTEM_PROMPT, TOOLS, FUNCTIONS, retry_question, history
+    )
+    trace = trace + retry_trace
+
+    if not check_grounding(answer, trace):
+        return answer, trace
+
+    # Still failing: show nothing rather than an unverified answer
+    return (
+        "I could not produce an answer whose sources I could verify, "
+        "so I am not showing one. Please rephrase the question or "
+        "check the reports directly."
+    ), trace

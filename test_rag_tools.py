@@ -13,13 +13,22 @@ Second paragraph.
 """
 
 
-def test_split_report_makes_one_chunk_per_paragraph():
-    chunks = split_report(SAMPLE, "test.md")
+def test_long_reports_are_split_between_paragraphs():
+    chunks = split_report(SAMPLE, "test.md", max_chars=20)
 
     assert [c["id"] for c in chunks] == ["test.md#0", "test.md#1"]
     assert chunks[0]["text"] == "Test Review (synthetic)\nFirst paragraph."
     assert chunks[1]["source"] == "test.md"
     assert chunks[1]["title"] == "Test Review (synthetic)"
+
+
+def test_short_reports_stay_in_one_chunk():
+    chunks = split_report(SAMPLE, "test.md")
+
+    assert len(chunks) == 1
+    assert chunks[0]["text"] == (
+        "Test Review (synthetic)\nFirst paragraph.\n\nSecond paragraph."
+    )
 
 
 def test_split_report_ignores_extra_blank_lines():
@@ -34,7 +43,7 @@ def test_load_chunks_reads_markdown_files_only(tmp_path):
 
     chunks = load_chunks(tmp_path)
 
-    assert len(chunks) == 4
+    assert len(chunks) == 2
     assert {c["source"] for c in chunks} == {"a.md", "b.md"}
 
 
