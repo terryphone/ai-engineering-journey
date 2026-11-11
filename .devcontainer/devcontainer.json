@@ -3,7 +3,8 @@
   "image": "mcr.microsoft.com/devcontainers/python:3.14",
   "postCreateCommand": "python -m venv .venv && .venv/bin/pip install -r requirements.txt",
   "features": {
-    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {}
   },
   "mounts": [
     "source=claude-code-config,target=/home/vscode/.claude,type=volume"

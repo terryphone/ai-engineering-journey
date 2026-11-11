@@ -6,6 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A learning project: LLM agents that answer questions about **synthetic** economic data. The core design rule across every agent is that the model never computes or invents numbers. It only chooses tools; pandas or SQL produce every figure, and report passages supply every explanation. System prompts state this rule, and code enforces it.
 
+## Rules for Claude Code
+
+- Do not run `try_*.py` or anything else that calls the Cerebras API unless asked; it uses API quota.
+- Run `pytest -q` after every change. All tests must pass before committing.
+- Never edit `reports/*.md` by hand. Change `make_reports.py` and re-run it.
+- Never commit API keys, `.env` or `chroma_db/`.
+
 ## Commands
 
 ```bash
