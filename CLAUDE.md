@@ -37,7 +37,7 @@ pytest test_rag_tools.py -k split -q # one test by name
 
 **LLM client:** `ai_config.py` returns an OpenAI-SDK client pointed at Cerebras (`gpt-oss-120b`). Switching providers happens only here.
 
-**Agent loop:** all agents use the same loop. The model calls tools until it answers, with up to `max_rounds` rounds. Then a final call with `tool_choice="none"` forces a best-effort answer. Each agent returns `(answer, trace)`, and the UI shows the trace as "Tools used". Memory keeps only the last N user/assistant turns, skipping any message flagged `is_error`. `agent_core.run_tool_agent` is the generic version, but only `research_agent.py` uses it so far. `agent.py` (CSV/pandas agent) and `sql_agent.py` still carry their own copies of the loop, so changes to loop behaviour must be made in all three or the older two migrated.
+**Agent loop:** all agents use the same loop. The model calls tools until it answers, with up to `max_rounds` rounds. Then a final call with `tool_choice="none"` forces a best-effort answer. Each agent returns `(answer, trace)`, and the UI shows the trace as "Tools used". Memory keeps only the last N user/assistant turns, skipping any message flagged `is_error`. The loop lives only in `agent_core.run_tool_agent`; `agent.py`, `sql_agent.py` and `research_agent.py` are thin wrappers that pass their own prompt, tools and limits. `test_agent_core.py` covers it with a fake client.
 
 **Three agents, three data sources:**
 - `agent.py` + `analyst_tools.py`: pandas tools over `economic_data.csv` (7 quarters). Used by `app.py`.
@@ -54,4 +54,3 @@ pytest test_rag_tools.py -k split -q # one test by name
 
 - Prompt rules for agents (no forecasting, no invented causes, state that the data is synthetic, 2 d.p., no LaTeX, no pipe characters) are deliberate fixes for observed model behaviour. Keep them when editing prompts.
 - Tests must stay offline (no API key). They build temp databases with `build_database(tmp_path / ...)` and fake traces for grounding.
-- The README describes only the original CSV dashboard and is behind the SQL/RAG work.

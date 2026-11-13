@@ -1,6 +1,4 @@
-import json
-
-from ai_config import get_ai_client, MODEL_NAME
+from agent_core import run_tool_agent
 from sql_tools import run_sql_query
 
 MAX_ROUNDS = 6      # tool-calling rounds before we stop the agent
@@ -23,7 +21,7 @@ VIEW gdp_growth(quarter, gdp, yoy_growth_pct, qoq_growth_pct)
   - yoy_growth_pct: year-on-year growth in percent
     (NULL for the first four quarters).
   - qoq_growth_pct: quarter-on-quarter growth in percent
-    (NULL for the first quarter).are).
+    (NULL for the first quarter).
 """
 
 SYSTEM_PROMPT = f"""
@@ -87,86 +85,17 @@ SQL_TOOLS = [
 FUNCTIONS = {"run_sql_query": run_sql_query}
 
 
-def _memory(history):
-    """Turn the chat history into model-ready messages."""
-    usable = [
-        {"role": m["role"], "content": m["content"]}
-        for m in history
-        if not m.get("is_error")
-    ]
-    return usable[-MEMORY_TURNS * 2:]
-
-
 def run_sql_agent(question: str, history=None):
     """
     Answer a question by writing and running SQL.
     Returns (answer, trace), where trace lists every query run.
     """
-    client = get_ai_client().with_options(max_retries=5)
-
-    messages = (
-        [{"role": "system", "content": SYSTEM_PROMPT}]
-        + _memory(history or [])
-        + [{"role": "user", "content": question}]
+    return run_tool_agent(
+        SYSTEM_PROMPT,
+        SQL_TOOLS,
+        FUNCTIONS,
+        question,
+        history,
+        max_rounds=MAX_ROUNDS,
+        memory_turns=MEMORY_TURNS,
     )
-
-    trace = []
-
-    for _ in range(MAX_ROUNDS):
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-            tools=SQL_TOOLS,
-            tool_choice="auto",
-            temperature=0,
-        )
-        message = response.choices[0].message
-
-        if not message.tool_calls:
-            if not message.content:
-                raise ValueError("Cerebras returned no text response")
-            return message.content, trace
-
-        messages.append(message)
-
-        for call in message.tool_calls:
-            name = call.function.name
-            arguments = {}
-
-            if name not in FUNCTIONS:
-                result = {"error": "Unknown tool requested"}
-            else:
-                try:
-                    arguments = json.loads(call.function.arguments or "{}")
-                    result = FUNCTIONS[name](**arguments)
-                except (ValueError, TypeError, KeyError) as error:
-                    result = {"error": str(error)}
-
-            trace.append({
-                "tool": name,
-                "arguments": arguments,
-                "result": result,
-            })
-
-            messages.append({
-                "role": "tool",
-                "tool_call_id": call.id,
-                "content": json.dumps(result),
-            })
-
-    # Out of rounds: force a best-effort answer instead of crashing
-    messages.append({
-        "role": "user",
-        "content": (
-            "You have used all available queries. Answer now using "
-            "only the results above, and say what is missing."
-        ),
-    })
-    final = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=messages,
-        tools=SQL_TOOLS,
-        tool_choice="none",
-        temperature=0,
-    )
-    return final.choices[0].message.content or "No answer produced.", trace
