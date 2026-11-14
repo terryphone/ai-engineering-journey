@@ -1,6 +1,6 @@
 # AI Economic Dashboard
 
-A Streamlit dashboard that analyses quarterly GDP data and lets you ask questions about it in plain English. An LLM agent answers by calling Python functions, so every number comes from pandas and not from the model.
+A Streamlit app that analyses quarterly economic data and lets you ask questions about it in plain English. Three LLM agents answer by calling tools, so every number comes from pandas or SQL and every explanation comes from a report passage, never from the model itself.
 
 > **Note:** all data is synthetic and for educational use.
 
@@ -15,6 +15,10 @@ A Streamlit dashboard that analyses quarterly GDP data and lets you ask question
   - Declines to forecast or invent causes that the data can't support.
   - Shows a "Tools used" panel under each answer, so you can see exactly what it called.
   - Stops after a fixed number of tool rounds and gives a best-effort answer instead of looping.
+- **SQL agent** (`pages/1_SQL_Agent.py`): text-to-SQL over a 27-quarter SQLite database (2020Q1 to 2026Q3) with output by sector. Queries are safe in layers: SELECT/WITH only, a read-only connection, a SQLite authorizer allowlist, a 2-second timeout and a 50-row cap.
+- **Research agent** (`pages/2_Research_Agent.py`): combines the SQL tool with search over a set of synthetic economic reports (RAG with ChromaDB). It takes numbers from the database and explanations from the reports, and cites the reports it used.
+  - A source check verifies that every cited report was actually retrieved and every quotation of six or more words matches retrieved text.
+  - If the check fails, the agent retries once with the problems listed. If it fails again, it refuses rather than show an unverified answer.
 
 ## How it works
 
@@ -22,19 +26,25 @@ A Streamlit dashboard that analyses quarterly GDP data and lets you ask question
 User question
      |
      v
-  agent.py  --- conversation memory + system rules
+  agent_core.py  --- conversation memory + system rules
      |
-     |  1. LLM picks a tool           (get_yoy_growth, average_yoy_growth, ...)
-     |  2. Python runs it on the data (pandas, analyst_tools.py)
+     |  1. LLM picks a tool           (get_yoy_growth, run_sql_query, search_reports, ...)
+     |  2. Python runs it             (pandas, SQLite or ChromaDB)
      |  3. Result goes back to the LLM
      |  4. Repeat until it can answer
      v
  Final answer + tool trace
 ```
 
-The model never calculates anything itself. It only chooses which function to call and explains the result.
+All three agents share this loop (`agent_core.run_tool_agent`) and differ only in their system prompt and tools. The model never calculates anything itself. It only chooses which function to call and explains the result. Tools return `{"error": ...}` instead of raising, so the model can read the error and try again.
 
-### Available tools
+| Agent | Data | Tools |
+|---|---|---|
+| CSV agent (`agent.py`) | `economic_data.csv`, 7 quarters | pandas functions below |
+| SQL agent (`sql_agent.py`) | `economy.db`, 27 quarters | `run_sql_query` |
+| Research agent (`research_agent.py`) | `economy.db` + `reports/` | `run_sql_query`, `search_reports` |
+
+### CSV agent tools
 
 | Tool | What it does |
 |---|---|
@@ -49,13 +59,25 @@ The model never calculates anything itself. It only chooses which function to ca
 ## Project structure
 
 ```
-app.py                  Streamlit dashboard and chat interface
-agent.py                Agent loop: memory, multi-step tool calling, trace
-analyst_tools.py        Tool functions and their schemas
+app.py                  Streamlit dashboard and CSV chat (main page)
+pages/1_SQL_Agent.py    SQL agent page
+pages/2_Research_Agent.py  Research agent page
+agent_core.py           Shared agent loop: memory, multi-step tool calling, trace
+agent.py                CSV agent (prompt + pandas tools)
+analyst_tools.py        Pandas tool functions and their schemas
+sql_agent.py            SQL agent (prompt, schema description, tool schema)
+sql_tools.py            Safe read-only run_sql_query
+research_agent.py       Research agent with source check and retry
+rag_tools.py            Report chunking and search_reports (ChromaDB)
+grounding.py            Checks citations and quotations against retrieved text
 economic_analyst.py     Data loading, validation, growth stats, AI commentary
 ai_config.py            LLM client and model settings
-economic_data.csv       Synthetic quarterly GDP data
-test_analyst_tools.py   Offline unit tests (no API calls)
+economic_data.csv       Synthetic quarterly GDP data (CSV agent)
+build_database.py       Generates economy.db (fixed seed)
+make_reports.py         Generates reports/*.md
+build_index.py          Builds the ChromaDB index in chroma_db/
+test_*.py               Offline tests (no API calls)
+try_*.py                Manual end-to-end checks against the live API
 archives/               Earlier learning exercises
 ```
 
@@ -68,9 +90,16 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
+# Generate the data (economy.db is committed; chroma_db/ is not)
+python build_database.py    # -> economy.db
+python make_reports.py      # -> reports/*.md
+python build_index.py       # -> chroma_db/
+
 export CEREBRAS_API_KEY="your-key-here"
 streamlit run app.py
 ```
+
+The SQL and Research agents appear as extra pages in the Streamlit sidebar. The Research agent needs `chroma_db/`, so run `build_index.py` first. Rebuild the index whenever the reports change. The reports' figures must match the database, so if you change `build_database.py`, update `make_reports.py` too.
 
 The key is read from the environment and is never stored in the repo. The LLM client uses an OpenAI-compatible API, so you can switch providers by editing `ai_config.py`.
 
@@ -80,19 +109,23 @@ The key is read from the environment and is never stored in the repo. The LLM cl
 - Which quarter had the weakest growth?
 - Compare GDP levels in 2026Q1 and 2026Q3.
 - *Will growth improve next quarter?* The agent declines, because the tools only describe historical data.
+- SQL agent: Which sector grew fastest between 2020Q1 and 2026Q3?
+- Research agent: Why did GDP fall in 2020Q2, and by how much?
 
 ## Tests
 
 ```bash
-pip install pytest
-pytest test_analyst_tools.py -q
+pytest -q
 ```
 
-These tests cover the tool functions directly and run without an API key.
+The tests run without an API key. They cover the pandas tools, the SQL safety layers, report chunking and search, the source check, and the shared agent loop (using a fake LLM client). One test checks that the figures in the reports match the database.
+
+The `try_*.py` scripts call the live API and are named so pytest skips them. Run them directly, for example `python try_research_agent.py`.
 
 ## Limitations
 
-- The dataset has only 7 quarters, so YoY growth exists for just the last three.
+- The CSV dataset has only 7 quarters, so YoY growth exists for just the last three. The SQL and Research agents use the larger 27-quarter database.
+- The reports are short and fictional, so the Research agent can only explain events they cover. It says so when they don't.
 - Conversation memory keeps the final answers, not the raw tool results, so an earlier mistake could carry into later turns.
 - There is no forecasting, by design.
 
@@ -102,8 +135,8 @@ These tests cover the tool functions directly and run without an API key.
 - [x] AI-powered data analysis with pandas and Streamlit
 - [x] Function calling and tools
 - [x] Conversational agent with memory
-- [ ] SQL-powered agent (SQLite, safe text-to-SQL)
-- [ ] RAG over economic reports (embeddings, ChromaDB)
+- [x] SQL-powered agent (SQLite, safe text-to-SQL)
+- [x] RAG over economic reports (embeddings, ChromaDB)
 - [ ] Agent evaluation and regression tests
 - [ ] Power BI integration
 - [ ] Deployment (FastAPI, Docker)
