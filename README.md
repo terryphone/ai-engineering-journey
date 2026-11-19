@@ -137,6 +137,6 @@ The `try_*.py` scripts call the live API and are named so pytest skips them. Run
 - [x] Conversational agent with memory
 - [x] SQL-powered agent (SQLite, safe text-to-SQL)
 - [x] RAG over economic reports (embeddings, ChromaDB)
-- [ ] Agent evaluation and regression tests
+- [x] Agent evaluation and regression tests
 - [ ] Power BI integration
 - [ ] Deployment (FastAPI, Docker)
