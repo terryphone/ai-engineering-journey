@@ -2,7 +2,7 @@ import pytest
 
 from build_database import build_database
 from make_reports import REPORTS, write_reports
-from rag_tools import load_chunks, search_reports, split_report
+from rag_tools import build_index, load_chunks, search_reports, split_report
 from sql_tools import run_sql_query
 
 SAMPLE = """# Test Review (synthetic)
@@ -78,3 +78,47 @@ def test_report_numbers_match_the_database(tmp_path, report, quarter, column):
     value = result["rows"][0][0]
 
     assert f"{abs(value):.2f}%" in REPORTS[report]
+
+@pytest.fixture(scope="module")
+def report_index(tmp_path_factory):
+    """A real index of every report, built in a temp folder."""
+    root = tmp_path_factory.mktemp("rag")
+    write_reports(root / "reports")
+    build_index(root / "reports", root / "index")
+    return root / "index"
+
+
+def sources(result):
+    return [p["source"] for p in result["passages"]]
+
+
+def test_search_puts_the_named_quarter_first(report_index):
+    # Real agent query where pure embedding search ranked 2020Q2 fifth (cut off)
+    result = search_reports(
+        "2020Q2 quarter-on-quarter GDP growth cause", index_dir=report_index
+    )
+    assert sources(result)[0] == "2020Q2_review.md"
+
+
+def test_search_quarter_match_ignores_case(report_index):
+    result = search_reports("why did output fall in 2020q2", index_dir=report_index)
+    assert sources(result)[0] == "2020Q2_review.md"
+
+
+def test_search_has_no_duplicates_and_keeps_the_limit(report_index):
+    result = search_reports("2020Q2 contraction cause", index_dir=report_index)
+    texts = [p["text"] for p in result["passages"]]
+    assert len(texts) == len(set(texts))
+    assert len(texts) <= 4
+
+
+def test_search_for_a_quarter_without_a_report_still_works(report_index):
+    # No 2022Q1 review exists: fall back to normal search, never invent it
+    result = search_reports("2022Q1 review", index_dir=report_index)
+    assert result["passages"]
+    assert "2022Q1_review.md" not in sources(result)
+
+
+def test_search_without_a_quarter_is_unchanged(report_index):
+    result = search_reports("how is growth measured", index_dir=report_index)
+    assert result["passages"]

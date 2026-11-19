@@ -41,6 +41,11 @@ SYSTEM_PROMPT = f"""
 - When asked for a reason, quote the passage that states the cause
   and say which period it covers. If the reports explain only part
   of the change, say so.
+- Only treat a report figure as explaining a change if it measures
+  the same quantity over the same period. For example, a change in
+  one quarter's year-on-year growth is not a change in a 4-quarter
+  average. If the measures differ, say that the report does not
+  directly explain the change, and do not divide one by the other.
 - Do not name real-world events (such as pandemics or wars) unless
   a retrieved passage names them.
 - Do not claim that something is the largest, biggest or smallest
@@ -60,7 +65,14 @@ Rules:
 - Take numbers only from SQL results. Take explanations only from
   report passages. Never use your own knowledge for either.
 - Cite every claim that comes from a report in square brackets with
-  the file name, for example [2020Q2_review.md].
+  the file name, for example [2020Q2_review.md]. Put only the file
+  name inside plain square brackets, one file per bracket. Never put
+  tool names or words such as "source=" inside a citation.
+- If the question asks about a report that search_reports does not
+  return, say that no such report is available. Name the missing
+  report without square brackets, because brackets mean a citation.
+- If an SQL result differs from a figure stated in the question, say
+  so and give both figures.
 - Keep what the data shows separate from what a report says.
 - If no report passage answers the question, say the reports do not
   cover it. Never invent causes.
@@ -79,6 +91,13 @@ Rules:
 - Report numbers to 2 decimal places and name the quarters used.
 - State clearly that the data and reports are synthetic.
 """
+
+UNVERIFIED_ANSWER = (
+    "I could not produce an answer whose sources I could verify, "
+    "so I am not showing one. Please rephrase the question or "
+    "check the reports directly."
+)
+
 
 def run_research_agent(question: str, history=None):
     """Answer a question using both the database and the reports."""
@@ -108,8 +127,4 @@ def run_research_agent(question: str, history=None):
         return answer, trace
 
     # Still failing: show nothing rather than an unverified answer
-    return (
-        "I could not produce an answer whose sources I could verify, "
-        "so I am not showing one. Please rephrase the question or "
-        "check the reports directly."
-    ), trace
+    return UNVERIFIED_ANSWER, trace

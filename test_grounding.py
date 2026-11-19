@@ -68,3 +68,65 @@ def test_answer_without_citations_or_quotes_passes():
 def test_short_quotes_are_ignored():
     answer = 'Growth was "ordinary" and the term "base effect" applies.'
     assert check_grounding(answer, []) == []
+
+# --- Percentages must come from SQL results or retrieved passages ---
+
+def sql_step(*values):
+    """A fake run_sql_query step whose result holds these values."""
+    return {
+        "tool": "run_sql_query",
+        "arguments": {"query": "SELECT ..."},
+        "result": {
+            "columns": ["quarter", "value"],
+            "rows": [["2026Q3", v] for v in values],
+            "row_count": len(values),
+            "truncated": False,
+        },
+    }
+
+
+def test_percentage_computed_outside_sql_fails():
+    # Real failure: 0.28 / 0.30 worked out by the model, not by SQL
+    trace = [sql_step(3.21, 2.91, -0.30)] + trace_for("2026Q3_review.md")
+    answer = (
+        "The average fell from 3.21 % to 2.91 %. The reports explain "
+        "about 93 % of the drop; the rest (≈7 %) is unexplained."
+    )
+    problems = check_grounding(answer, trace)
+
+    assert any("93%" in p for p in problems)
+    assert any("7%" in p for p in problems)
+    assert not any("3.21%" in p or "2.91%" in p for p in problems)
+
+
+def test_percentage_rounded_from_sql_passes():
+    # SQL returns 3.0125; the prompt asks for 2 decimal places
+    assert check_grounding("Average growth was 3.01 %.", [sql_step(3.0125)]) == []
+
+
+def test_percentage_sign_and_spacing_differences_pass():
+    # Non-breaking hyphen, narrow no-break space, and "fell 6.66 %" for -6.66
+    answer = "Growth was ‑6.66 %, so GDP fell 6.66% in 2020Q2."
+    assert check_grounding(answer, [sql_step(-6.66)]) == []
+
+
+def test_percentage_from_a_retrieved_report_passes():
+    answer = (
+        "From the report: Trade growth slowed to 0.34 % from 1.77 % "
+        "[2026Q3_review.md]."
+    )
+    assert check_grounding(answer, trace_for("2026Q3_review.md")) == []
+
+
+def test_percentage_with_no_tools_called_fails():
+    problems = check_grounding("GDP will grow 2.50 % next year.", [])
+    assert any("2.50%" in p for p in problems)
+
+
+def test_failed_sql_step_is_ignored():
+    trace = [{
+        "tool": "run_sql_query",
+        "arguments": {"query": "SELECT nope"},
+        "result": {"error": "no such column: nope"},
+    }, sql_step(2.82)]
+    assert check_grounding("Growth was 2.82 %.", trace) == []

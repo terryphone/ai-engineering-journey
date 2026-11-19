@@ -6,3 +6,5 @@ __pycache__/
 economic_report.txt
 gdp_commentary.txt
 chroma_db/
+eval_results.json
+eval_case_*.json
