@@ -1,3 +1,4 @@
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -8,6 +9,9 @@ INDEX_DIR = Path(__file__).resolve().parent / "chroma_db"
 COLLECTION_NAME = "economic_reports"
 MAX_RESULTS = 4
 MAX_CHUNK_CHARS = 1000  # short reports stay in one piece
+
+# A quarter named in a query, e.g. '2020Q2' or '2020 q2'
+QUARTER = re.compile(r"\b(\d{4})\s*q([1-4])\b", re.IGNORECASE)
 
 # =====================================
 # 1. SPLIT REPORTS INTO CHUNKS
@@ -102,6 +106,22 @@ def _get_collection(index_dir: str):
     return client.get_collection(COLLECTION_NAME)
 
 
+def _to_passages(found) -> list[dict]:
+    """Turn a Chroma query result into the tool's passage dicts."""
+    return [
+        {
+            "source": meta["source"],
+            "text": text,
+            "distance": round(distance, 3),
+        }
+        for text, meta, distance in zip(
+            found["documents"][0],
+            found["metadatas"][0],
+            found["distances"][0],
+        )
+    ]
+
+
 def search_reports(
     query: str,
     n_results: int = MAX_RESULTS,
@@ -117,26 +137,34 @@ def search_reports(
     if not index_dir.exists():
         return {"error": "Report index not built. Run: python build_index.py"}
 
+    limit = max(1, min(int(n_results), 5))
+
     try:
         collection = _get_collection(str(index_dir))
-        found = collection.query(
-            query_texts=[query],
-            n_results=max(1, min(int(n_results), 5)),
-        )
+        found = collection.query(query_texts=[query], n_results=limit)
     except Exception as error:
         return {"error": f"Search failed: {error}"}
 
-    passages = [
-        {
-            "source": meta["source"],
-            "text": text,
-            "distance": round(distance, 3),
-        }
-        for text, meta, distance in zip(
-            found["documents"][0],
-            found["metadatas"][0],
-            found["distances"][0],
-        )
-    ]
+    # Embedding search gives little weight to an exact quarter such as
+    # '2020Q2', so passages from a review of a named quarter go first.
+    period_passages = []
+    for year, number in dict.fromkeys(QUARTER.findall(query)):
+        try:
+            period_passages += _to_passages(collection.query(
+                query_texts=[query],
+                n_results=limit,
+                where={"source": f"{year}Q{number}_review.md"},
+            ))
+        except Exception:
+            pass  # no review for that quarter: keep the normal results
+
+    passages, seen = [], set()
+    for passage in period_passages + _to_passages(found):
+        key = (passage["source"], passage["text"])
+        if key not in seen:
+            seen.add(key)
+            passages.append(passage)
+
+    passages = passages[:limit]
 
     return {"passages": passages}
