@@ -94,3 +94,7 @@ def test_qoq_growth_shows_the_2020_dip(db):
         "ORDER BY qoq_growth_pct ASC LIMIT 1", db
     )
     assert result["rows"] == [["2020Q2"]]
+
+def test_missing_database_returns_error_not_exception(tmp_path):
+    result = run_sql_query("SELECT 1", tmp_path / "missing.db")
+    assert "error" in result

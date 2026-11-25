@@ -38,8 +38,14 @@ def run_sql_query(query: str, db_path=None) -> dict:
     if first_word not in ("SELECT", "WITH"):
         return {"error": "Only SELECT queries are allowed"}
 
+    if not db_path.exists():
+        return {"error": f"Database not found: {db_path.name}"}
+
     # Layer 2: database opened read-only
-    conn = sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True)
+    try:
+        conn = sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True)
+    except sqlite3.Error as error:
+        return {"error": str(error)}
 
     # Layer 3: SQLite itself rejects anything except reading
     conn.set_authorizer(_authorizer)

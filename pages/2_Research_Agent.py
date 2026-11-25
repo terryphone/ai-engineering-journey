@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from rag_tools import INDEX_DIR
+from rag_tools import INDEX_DIR, build_index
 from research_agent import run_research_agent
 from sql_tools import DB_PATH
 
@@ -22,11 +22,16 @@ if not DB_PATH.exists():
     st.stop()
 
 if not INDEX_DIR.exists():
-    st.error(
-        "Report index not found. Run `python make_reports.py` "
-        "and then `python build_index.py`."
-    )
-    st.stop()
+    # chroma_db/ is not committed, so a fresh deployment builds it here
+    with st.spinner("Building the report index (first run only)..."):
+        try:
+            build_index()
+        except Exception as error:
+            st.error(
+                f"Could not build the report index: {error}. Run "
+                "`python make_reports.py` and then `python build_index.py`."
+            )
+            st.stop()
 
 if "research_chat_history" not in st.session_state:
     st.session_state.research_chat_history = []
