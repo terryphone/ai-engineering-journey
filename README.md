@@ -4,6 +4,8 @@ A Streamlit app that analyses quarterly economic data and lets you ask questions
 
 > **Note:** all data is synthetic and for educational use.
 
+![Dashboard showing GDP data, metrics and growth chart](docs/screenshots/dashboard.png)
+
 ## Features
 
 - **Data validation:** checks the CSV for missing quarters, duplicates, non-positive values and too little history.
@@ -19,6 +21,7 @@ A Streamlit app that analyses quarterly economic data and lets you ask questions
 - **Research agent** (`pages/2_Research_Agent.py`): combines the SQL tool with search over a set of synthetic economic reports (RAG with ChromaDB). It takes numbers from the database and explanations from the reports, and cites the reports it used.
   - A source check verifies that every cited report was actually retrieved, every quotation of six or more words matches retrieved text, and every percentage appears in an SQL result or a retrieved passage.
   - If the check fails, the agent retries once with the problems listed. If it fails again, it refuses rather than show an unverified answer.
+- **REST API** (`api.py`): FastAPI service exposing all three agents plus a metrics endpoint, with request validation and clear HTTP errors. Ships as a Docker image.
 
 ## How it works
 
@@ -60,6 +63,8 @@ All three agents share this loop (`agent_core.run_tool_agent`) and differ only i
 
 ```
 app.py                  Streamlit dashboard and CSV chat (main page)
+api.py                  FastAPI REST API for the agents and metrics
+Dockerfile              Container image for the API
 pages/1_SQL_Agent.py    SQL agent page
 pages/2_Research_Agent.py  Research agent page
 agent_core.py           Shared agent loop: memory, multi-step tool calling, trace
@@ -103,6 +108,49 @@ The SQL and Research agents appear as extra pages in the Streamlit sidebar. The 
 
 The key is read from the environment and is never stored in the repo. The LLM client uses an OpenAI-compatible API, so you can switch providers by editing `ai_config.py`.
 
+## REST API
+
+`api.py` exposes the same agents over HTTP, so other programs can use them.
+
+| Method | Path | What it does | Needs API key |
+|---|---|---|---|
+| GET | `/health` | Liveness check and which data files exist | No |
+| GET | `/metrics` | Latest GDP, YoY growth and change in growth | No |
+| POST | `/ask/csv` | CSV agent | Yes |
+| POST | `/ask/sql` | SQL agent | Yes |
+| POST | `/ask/research` | Research agent with source checks | Yes |
+
+The `/ask` endpoints take `{"question": "...", "history": [...]}` and return `{"answer": "...", "trace": [...]}`, where `trace` lists every tool call. Questions are limited to 1,000 characters and history accepts only `user` and `assistant` roles, so a caller cannot inject a system message. A missing API key returns 503; an agent failure returns 502 without leaking internal details.
+
+Run it locally:
+
+```bash
+uvicorn api:app --reload
+# Interactive docs: http://127.0.0.1:8000/docs
+curl -X POST http://127.0.0.1:8000/ask/sql \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Which sector grew fastest since 2020Q1?"}'
+```
+
+### Docker
+
+The image installs the dependencies, builds the report index at build time (so the embedding model is baked in), and runs as a non-root user with a health check.
+
+```bash
+docker build -t economic-analyst-api .
+docker run -p 8000:8000 -e CEREBRAS_API_KEY="your-key-here" economic-analyst-api
+```
+
+## Deploying the dashboard
+
+The Streamlit app can be deployed free on [Streamlit Community Cloud](https://streamlit.io/cloud):
+
+1. Sign in with GitHub and choose **Create app**, then this repository, branch `main` and main file `app.py`.
+2. Under **Advanced settings**, pick Python 3.13 and add the secret `CEREBRAS_API_KEY = "your-key-here"`. Top-level secrets are available as environment variables, which is where `ai_config.py` reads the key.
+3. Deploy. The Research agent page builds the report index on its first run, because `chroma_db/` is not committed.
+
+Anyone with the link can use your API quota, so set a spending limit with your LLM provider.
+
 ## Example questions
 
 - What was the average YoY growth from 2026Q1 to 2026Q3, and is the latest quarter above or below it?
@@ -118,7 +166,7 @@ The key is read from the environment and is never stored in the repo. The LLM cl
 pytest -q
 ```
 
-The tests run without an API key. They cover the pandas tools, the SQL safety layers, report chunking and search, the source check, and the shared agent loop (using a fake LLM client). One test checks that the figures in the reports match the database.
+The tests run without an API key. They cover the pandas tools, the SQL safety layers, report chunking and search, the source check, the research agent's retry and refusal, the REST API, and the shared agent loop (using a fake LLM client). One test checks that the figures in the reports match the database.
 
 The `try_*.py` scripts call the live API and are named so pytest skips them. Run them directly, for example `python try_research_agent.py`.
 
@@ -139,4 +187,4 @@ The `try_*.py` scripts call the live API and are named so pytest skips them. Run
 - [x] RAG over economic reports (embeddings, ChromaDB)
 - [x] Agent evaluation and regression tests
 - [ ] Power BI integration
-- [ ] Deployment (FastAPI, Docker)
+- [x] Deployment (FastAPI, Docker)

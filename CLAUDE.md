@@ -25,6 +25,8 @@ python make_reports.py               # -> reports/*.md (from REPORTS dict)
 python build_index.py                # -> chroma_db/ (gitignored)
 
 streamlit run app.py                 # main dashboard; pages/ adds SQL + Research agents
+uvicorn api:app --reload             # REST API; docs at /docs
+docker build -t economic-analyst-api .
 
 pytest -q                            # all offline tests
 pytest test_grounding.py -q          # one file
@@ -43,6 +45,8 @@ pytest test_rag_tools.py -k split -q # one test by name
 - `agent.py` + `analyst_tools.py`: pandas tools over `economic_data.csv` (7 quarters). Used by `app.py`.
 - `sql_agent.py` + `sql_tools.py`: text-to-SQL over `economy.db` (27 quarters, `sector_output` table plus `gdp_quarterly` / `gdp_growth` views). `run_sql_query` is safe in layers: SELECT/WITH only, a read-only URI connection, a SQLite authorizer allowlist, a 2s progress-handler timeout and a 50-row cap with a `truncated` flag. Keep all of these layers.
 - `research_agent.py`: SQL tools plus `search_reports` (`rag_tools.py`, ChromaDB with its built-in local embeddings). Afterwards, `grounding.check_grounding` verifies that every `[file.md]` citation was actually retrieved, every quotation of 6+ words matches retrieved text (3-word shingles, ≥70% coverage), and every percentage matches a number in an SQL result or retrieved passage. On failure the agent retries once with the problems listed; the retry is checked only against its own trace, since it runs in a fresh conversation. If the retry also fails, it refuses rather than show an unverified answer.
+
+**REST API:** `api.py` (FastAPI) wraps the same three agents plus a no-LLM `/metrics` endpoint. It calls agents through their modules (`sql_agent.run_sql_agent`) so `test_api.py` can monkeypatch them. A missing API key maps to 503, other agent failures to 502.
 
 **Tool error contract:** tool functions return `{"error": ...}` dicts instead of raising, and the loop converts `ValueError`/`TypeError`/`KeyError` into the same shape. The model is expected to read errors and retry.
 
