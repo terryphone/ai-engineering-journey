@@ -121,9 +121,12 @@ def run_research_agent(question: str, history=None):
     answer, retry_trace = run_tool_agent(
         SYSTEM_PROMPT, TOOLS, FUNCTIONS, retry_question, history
     )
-    trace = trace + retry_trace
+    trace = trace + retry_trace  # show both attempts in "Tools used"
 
-    if not check_grounding(answer, trace):
+    # Check the retry only against what the retry itself retrieved: it
+    # runs in a fresh conversation and never saw the first attempt's
+    # passages or SQL results.
+    if not check_grounding(answer, retry_trace):
         return answer, trace
 
     # Still failing: show nothing rather than an unverified answer

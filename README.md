@@ -17,7 +17,7 @@ A Streamlit app that analyses quarterly economic data and lets you ask questions
   - Stops after a fixed number of tool rounds and gives a best-effort answer instead of looping.
 - **SQL agent** (`pages/1_SQL_Agent.py`): text-to-SQL over a 27-quarter SQLite database (2020Q1 to 2026Q3) with output by sector. Queries are safe in layers: SELECT/WITH only, a read-only connection, a SQLite authorizer allowlist, a 2-second timeout and a 50-row cap.
 - **Research agent** (`pages/2_Research_Agent.py`): combines the SQL tool with search over a set of synthetic economic reports (RAG with ChromaDB). It takes numbers from the database and explanations from the reports, and cites the reports it used.
-  - A source check verifies that every cited report was actually retrieved and every quotation of six or more words matches retrieved text.
+  - A source check verifies that every cited report was actually retrieved, every quotation of six or more words matches retrieved text, and every percentage appears in an SQL result or a retrieved passage.
   - If the check fails, the agent retries once with the problems listed. If it fails again, it refuses rather than show an unverified answer.
 
 ## How it works
@@ -69,7 +69,7 @@ sql_agent.py            SQL agent (prompt, schema description, tool schema)
 sql_tools.py            Safe read-only run_sql_query
 research_agent.py       Research agent with source check and retry
 rag_tools.py            Report chunking and search_reports (ChromaDB)
-grounding.py            Checks citations and quotations against retrieved text
+grounding.py            Checks citations, quotations and percentages against tool results
 economic_analyst.py     Data loading, validation, growth stats, AI commentary
 ai_config.py            LLM client and model settings
 economic_data.csv       Synthetic quarterly GDP data (CSV agent)
