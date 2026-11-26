@@ -3,10 +3,10 @@ import sqlite3
 from pathlib import Path
 
 import pandas as pd
-from ai_config import get_ai_client, MODEL_NAME
+from analyst.ai_config import get_ai_client, MODEL_NAME
 from pydantic import BaseModel
 
-DB_PATH = Path(__file__).resolve().parent / "economy.db"
+from analyst.paths import DB_PATH
 
 # =====================================
 # 1. DEFINE AI OUTPUT STRUCTURE

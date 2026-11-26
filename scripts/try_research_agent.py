@@ -1,4 +1,4 @@
-from research_agent import run_research_agent
+from analyst.research_agent import run_research_agent
 
 questions = [
     "Why did GDP fall in 2020Q2, and by how much?",

@@ -1,9 +1,9 @@
 import pytest
 
-from build_database import build_database
-from make_reports import REPORTS, write_reports
-from rag_tools import build_index, load_chunks, search_reports, split_report
-from sql_tools import run_sql_query
+from analyst.build_database import build_database
+from analyst.make_reports import REPORTS, write_reports
+from analyst.rag_tools import build_index, load_chunks, search_reports, split_report
+from analyst.sql_tools import run_sql_query
 
 SAMPLE = """# Test Review (synthetic)
 

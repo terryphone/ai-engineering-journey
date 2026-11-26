@@ -5,11 +5,9 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
-import agent
-import agent_core
-import sql_agent
-
-
+from analyst import agent
+from analyst import agent_core
+from analyst import sql_agent
 def tool_call(name, arguments, call_id="call_1"):
     return SimpleNamespace(
         id=call_id,

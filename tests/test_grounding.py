@@ -1,6 +1,6 @@
-from grounding import check_grounding
-from make_reports import REPORTS
-from rag_tools import split_report
+from analyst.grounding import check_grounding
+from analyst.make_reports import REPORTS
+from analyst.rag_tools import split_report
 
 
 def trace_for(*report_names):

@@ -1,5 +1,5 @@
-from economic_analyst import load_data
-from agent import run_agent
+from analyst.economic_analyst import load_data
+from analyst.agent import run_agent
 
 df = load_data()
 

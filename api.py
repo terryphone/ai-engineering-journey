@@ -12,12 +12,12 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-import agent
-import research_agent
-import sql_agent
-from economic_analyst import calculate_growth, load_data
-from rag_tools import INDEX_DIR
-from sql_tools import DB_PATH
+from analyst import agent
+from analyst import research_agent
+from analyst import sql_agent
+from analyst.economic_analyst import calculate_growth, load_data
+from analyst.rag_tools import INDEX_DIR
+from analyst.sql_tools import DB_PATH
 
 MAX_QUESTION_CHARS = 1000
 MAX_HISTORY_MESSAGES = 20  # the agents only use the last few anyway

@@ -4,9 +4,9 @@ import sqlite3
 import pandas as pd
 import pytest
 
-from build_database import build_database
-from economic_analyst import calculate_growth, load_data, validate_data
-from sql_tools import run_sql_query
+from analyst.build_database import build_database
+from analyst.economic_analyst import calculate_growth, load_data, validate_data
+from analyst.sql_tools import run_sql_query
 
 
 @pytest.fixture

@@ -1,8 +1,8 @@
 """Offline tests for the research agent's source check, retry and refusal."""
-import research_agent
-from make_reports import REPORTS
-from rag_tools import split_report
-from research_agent import UNVERIFIED_ANSWER, run_research_agent
+from analyst import research_agent
+from analyst.make_reports import REPORTS
+from analyst.rag_tools import split_report
+from analyst.research_agent import UNVERIFIED_ANSWER, run_research_agent
 
 
 def search_step(name):

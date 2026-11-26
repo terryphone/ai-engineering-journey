@@ -2,7 +2,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent / "economy.db"
+from analyst.paths import DB_PATH
 
 MAX_ROWS = 50        # never send more than this to the model
 MAX_SECONDS = 2.0    # abort queries that run longer

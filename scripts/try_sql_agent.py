@@ -1,4 +1,4 @@
-from sql_agent import run_sql_agent
+from analyst.sql_agent import run_sql_agent
 
 questions = [
     "What was the average YoY growth over the last four quarters, "

@@ -8,10 +8,11 @@ A learning project: LLM agents that answer questions about **synthetic** economi
 
 ## Rules for Claude Code
 
-- Do not run `try_*.py` or anything else that calls the Cerebras API unless asked; it uses API quota.
+- Do not run `scripts/try_*.py`, `scripts/evaluate.py` or anything else that calls the Cerebras API unless asked; it uses API quota.
 - Run `pytest -q` after every change. All tests must pass before committing.
-- Never edit `reports/*.md` by hand. Change `make_reports.py` and re-run it.
-- Never commit API keys, `.env` or `chroma_db/`.
+- Never edit `data/reports/*.md` by hand. Change `analyst/make_reports.py` and re-run it.
+- Never commit API keys, `.env` or `data/chroma_db/`.
+- Take file locations from `analyst/paths.py`; do not build paths from `__file__` elsewhere.
 
 ## Commands
 
@@ -20,20 +21,22 @@ source .venv/bin/activate
 export CEREBRAS_API_KEY=...          # needed only for agents/app, not tests
 
 # Generated data (rebuild after changing the generators)
-python build_database.py             # -> economy.db (SQLite, fixed seed 42)
-python make_reports.py               # -> reports/*.md (from REPORTS dict)
-python build_index.py                # -> chroma_db/ (gitignored)
+python -m analyst.build_database     # -> data/economy.db (SQLite, fixed seed 42)
+python -m analyst.make_reports       # -> data/reports/*.md (from REPORTS dict)
+python -m scripts.build_index        # -> data/chroma_db/ (gitignored)
 
 streamlit run app.py                 # main dashboard; pages/ adds SQL + Research agents
 uvicorn api:app --reload             # REST API; docs at /docs
 docker build -t economic-analyst-api .
 
 pytest -q                            # all offline tests
-pytest test_grounding.py -q          # one file
-pytest test_rag_tools.py -k split -q # one test by name
+pytest tests/test_grounding.py -q          # one file
+pytest tests/test_rag_tools.py -k split -q # one test by name
 ```
 
-`try_*.py` scripts call the live API and are deliberately named so pytest does not collect them. Run them directly (`python try_research_agent.py`) for manual end-to-end checks.
+## Layout
+
+`app.py` and `api.py` are the entry points and stay at the root (Streamlit needs `pages/` next to `app.py`). All library code is the `analyst/` package and is imported as `from analyst.x import y`. Data is in `data/`, tests in `tests/` (`pytest.ini` sets `pythonpath = .`), and live-API scripts in `scripts/`. Run scripts and generators as modules from the root (`python -m scripts.try_research_agent`) so `analyst` is importable.
 
 ## Architecture
 

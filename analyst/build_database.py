@@ -2,7 +2,7 @@ import random
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent / "economy.db"
+from analyst.paths import DB_PATH
 
 # sector: (starting output, average quarterly growth rate)
 SECTORS = {

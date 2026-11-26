@@ -3,14 +3,14 @@
 import pandas as pd
 import streamlit as st
 
-from economic_analyst import (
+from analyst.economic_analyst import (
     load_data,
     calculate_growth,
     generate_commentary,
 )
 
 # AI-powered chatbot
-from agent import run_agent
+from analyst.agent import run_agent
 
 # =====================================
 # 1. PAGE CONFIGURATION

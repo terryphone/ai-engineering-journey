@@ -1,6 +1,6 @@
 from pathlib import Path
 
-REPORTS_DIR = Path(__file__).resolve().parent / "reports"
+from analyst.paths import REPORTS_DIR
 
 # Fictional reports written to match the synthetic economy database.
 REPORTS = {

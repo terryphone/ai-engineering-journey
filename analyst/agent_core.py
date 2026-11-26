@@ -1,6 +1,6 @@
 import json
 
-from ai_config import get_ai_client, MODEL_NAME
+from analyst.ai_config import get_ai_client, MODEL_NAME
 
 
 def _memory(history, memory_turns):

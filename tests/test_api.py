@@ -2,11 +2,10 @@
 import pytest
 from fastapi.testclient import TestClient
 
-import agent
+from analyst import agent
 import api
-import research_agent
-import sql_agent
-
+from analyst import research_agent
+from analyst import sql_agent
 client = TestClient(api.app)
 
 STEP = {"tool": "run_sql_query", "arguments": {"query": "SELECT 1"},
