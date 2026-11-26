@@ -128,7 +128,7 @@ def capture_call(monkeypatch, module):
     return seen
 
 
-def test_csv_agent_uses_shared_loop(monkeypatch):
+def test_dashboard_agent_uses_shared_loop(monkeypatch):
     seen = capture_call(monkeypatch, agent)
     df = pd.DataFrame({"Quarter": ["2026Q1"], "GDP": [100.0]})
 

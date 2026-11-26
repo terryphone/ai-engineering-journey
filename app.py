@@ -1,5 +1,4 @@
 
-from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -45,21 +44,12 @@ if "data_signature" not in st.session_state:
 # 2. LOAD SAMPLE DATASET
 # =====================================
 
-st.header("1. Select Economic Data")
-
-data_file = (
-    Path(__file__).resolve().parent
-    / "economic_data.csv"
-)
+st.header("1. Economic Data Source")
 
 st.info(
-    "Using synthetic GDP data stored "
-    "in the project directory."
+    "Using quarterly GDP from the synthetic economy database "
+    "(economy.db), the same data the SQL and Research agents use."
 )
-
-if not data_file.exists():
-    st.error("economic_data.csv not found.")
-    st.stop()
 
 
 # =====================================
@@ -67,10 +57,10 @@ if not data_file.exists():
 # =====================================
 
 try:
-    df = load_data(data_file)
+    df = load_data()
     stats = calculate_growth(df)
 
-except (ValueError, pd.errors.ParserError) as error:
+except ValueError as error:
     st.error(f"Invalid dataset: {error}")
     st.stop()
 

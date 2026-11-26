@@ -7,7 +7,6 @@ Then open http://127.0.0.1:8000/docs for interactive documentation.
 The /metrics endpoint is pure pandas and needs no API key.
 The /ask endpoints call the LLM and need CEREBRAS_API_KEY.
 """
-from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
@@ -19,8 +18,6 @@ import sql_agent
 from economic_analyst import calculate_growth, load_data
 from rag_tools import INDEX_DIR
 from sql_tools import DB_PATH
-
-DATA_FILE = Path(__file__).resolve().parent / "economic_data.csv"
 
 MAX_QUESTION_CHARS = 1000
 MAX_HISTORY_MESSAGES = 20  # the agents only use the last few anyway
@@ -90,7 +87,6 @@ def health() -> dict:
     """Liveness check, plus which data files are available."""
     return {
         "status": "ok",
-        "csv_data": DATA_FILE.exists(),
         "database": DB_PATH.exists(),
         "report_index": INDEX_DIR.exists(),
     }
@@ -98,10 +94,10 @@ def health() -> dict:
 
 @app.get("/metrics", response_model=Metrics)
 def metrics() -> dict:
-    """Latest GDP and YoY growth from the CSV dataset (no LLM)."""
+    """Latest GDP and YoY growth from the database (no LLM)."""
     try:
-        return calculate_growth(load_data(DATA_FILE))
-    except (OSError, ValueError) as error:
+        return calculate_growth(load_data())
+    except ValueError as error:
         raise HTTPException(500, f"Invalid dataset: {error}")
 
 
@@ -124,12 +120,12 @@ def _run(run_agent, question: Question, *extra) -> dict:
     return {"answer": answer, "trace": trace}
 
 
-@app.post("/ask/csv", response_model=Answer)
-def ask_csv(question: Question) -> dict:
-    """Ask the CSV agent (pandas tools over 7 quarters)."""
+@app.post("/ask/dashboard", response_model=Answer)
+def ask_dashboard(question: Question) -> dict:
+    """Ask the dashboard agent (pandas tools over quarterly GDP)."""
     try:
-        df = load_data(DATA_FILE)
-    except (OSError, ValueError) as error:
+        df = load_data()
+    except ValueError as error:
         raise HTTPException(500, f"Invalid dataset: {error}")
     return _run(agent.run_agent, question, df)
 

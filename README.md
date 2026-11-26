@@ -8,7 +8,8 @@ A Streamlit app that analyses quarterly economic data and lets you ask questions
 
 ## Features
 
-- **Data validation:** checks the CSV for missing quarters, duplicates, non-positive values and too little history.
+- **One source of truth:** the dashboard, the chat and all three agents read the same SQLite database, so every page reports the same figures. A test checks that the dashboard's growth matches the SQL view.
+- **Data validation:** checks the GDP data for missing quarters, duplicates, non-positive values and too little history.
 - **GDP metrics and chart:** latest GDP, year-on-year (YoY) growth, change in growth, and a growth trend chart.
 - **AI commentary:** generates a short economic commentary and key observation. The app checks that the model's quarter and growth figures match the calculated ones, and rejects the output if they don't.
 - **Chat with your data:** an agent that answers questions using tool calling.
@@ -43,11 +44,11 @@ All three agents share this loop (`agent_core.run_tool_agent`) and differ only i
 
 | Agent | Data | Tools |
 |---|---|---|
-| CSV agent (`agent.py`) | `economic_data.csv`, 7 quarters | pandas functions below |
+| Dashboard agent (`agent.py`) | `economy.db` GDP, loaded into pandas | pandas functions below |
 | SQL agent (`sql_agent.py`) | `economy.db`, 27 quarters | `run_sql_query` |
 | Research agent (`research_agent.py`) | `economy.db` + `reports/` | `run_sql_query`, `search_reports` |
 
-### CSV agent tools
+### Dashboard agent tools
 
 | Tool | What it does |
 |---|---|
@@ -62,13 +63,13 @@ All three agents share this loop (`agent_core.run_tool_agent`) and differ only i
 ## Project structure
 
 ```
-app.py                  Streamlit dashboard and CSV chat (main page)
+app.py                  Streamlit dashboard and chat (main page)
 api.py                  FastAPI REST API for the agents and metrics
 Dockerfile              Container image for the API
 pages/1_SQL_Agent.py    SQL agent page
 pages/2_Research_Agent.py  Research agent page
 agent_core.py           Shared agent loop: memory, multi-step tool calling, trace
-agent.py                CSV agent (prompt + pandas tools)
+agent.py                Dashboard agent (prompt + pandas tools)
 analyst_tools.py        Pandas tool functions and their schemas
 sql_agent.py            SQL agent (prompt, schema description, tool schema)
 sql_tools.py            Safe read-only run_sql_query
@@ -77,7 +78,6 @@ rag_tools.py            Report chunking and search_reports (ChromaDB)
 grounding.py            Checks citations, quotations and percentages against tool results
 economic_analyst.py     Data loading, validation, growth stats, AI commentary
 ai_config.py            LLM client and model settings
-economic_data.csv       Synthetic quarterly GDP data (CSV agent)
 build_database.py       Generates economy.db (fixed seed)
 make_reports.py         Generates reports/*.md
 build_index.py          Builds the ChromaDB index in chroma_db/
@@ -116,7 +116,7 @@ The key is read from the environment and is never stored in the repo. The LLM cl
 |---|---|---|---|
 | GET | `/health` | Liveness check and which data files exist | No |
 | GET | `/metrics` | Latest GDP, YoY growth and change in growth | No |
-| POST | `/ask/csv` | CSV agent | Yes |
+| POST | `/ask/dashboard` | Dashboard agent | Yes |
 | POST | `/ask/sql` | SQL agent | Yes |
 | POST | `/ask/research` | Research agent with source checks | Yes |
 
@@ -172,7 +172,6 @@ The `try_*.py` scripts call the live API and are named so pytest skips them. Run
 
 ## Limitations
 
-- The CSV dataset has only 7 quarters, so YoY growth exists for just the last three. The SQL and Research agents use the larger 27-quarter database.
 - The reports are short and fictional, so the Research agent can only explain events they cover. It says so when they don't.
 - Conversation memory keeps the final answers, not the raw tool results, so an earlier mistake could carry into later turns.
 - There is no forecasting, by design.

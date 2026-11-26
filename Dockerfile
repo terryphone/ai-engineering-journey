@@ -14,7 +14,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY *.py economic_data.csv economy.db ./
+COPY *.py economy.db ./
 COPY reports/ reports/
 
 # Build the report index at image build time. This also downloads

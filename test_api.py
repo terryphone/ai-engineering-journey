@@ -25,7 +25,7 @@ def fake_agents(monkeypatch):
             return f"{name} answer", [STEP]
         return fake
 
-    monkeypatch.setattr(agent, "run_agent", make("csv"))
+    monkeypatch.setattr(agent, "run_agent", make("dashboard"))
     monkeypatch.setattr(sql_agent, "run_sql_agent", make("sql"))
     monkeypatch.setattr(research_agent, "run_research_agent", make("research"))
     return calls
@@ -34,19 +34,18 @@ def fake_agents(monkeypatch):
 def test_health():
     body = client.get("/health").json()
     assert body["status"] == "ok"
-    assert body["csv_data"] and body["database"]
+    assert body["database"]
 
 
 def test_metrics_match_the_dashboard_calculation():
     body = client.get("/metrics").json()
     assert body["quarter"] == "2026Q3"
-    assert body["gdp"] == 160000
-    # 160000 / 151000 - 1 = 5.96 %
-    assert body["growth"] == pytest.approx(5.96)
+    assert body["growth"] == pytest.approx(2.82)  # same as the gdp_growth view
+    assert body["growth_change"] == pytest.approx(-0.28)
 
 
 @pytest.mark.parametrize("path, name", [
-    ("/ask/csv", "csv"), ("/ask/sql", "sql"), ("/ask/research", "research"),
+    ("/ask/dashboard", "dashboard"), ("/ask/sql", "sql"), ("/ask/research", "research"),
 ])
 def test_each_endpoint_calls_its_agent(fake_agents, monkeypatch, tmp_path, path, name):
     monkeypatch.setattr(api, "INDEX_DIR", tmp_path)  # pretend the index exists
@@ -65,11 +64,11 @@ def test_history_is_passed_to_the_agent(fake_agents):
     assert passed == history
 
 
-def test_csv_agent_gets_the_dataframe(fake_agents):
-    client.post("/ask/csv", json={"question": "q"})
+def test_dashboard_agent_gets_the_dataframe(fake_agents):
+    client.post("/ask/dashboard", json={"question": "q"})
     df = fake_agents[0][1][0]
     assert list(df.columns) == ["Quarter", "GDP"]
-    assert len(df) == 7
+    assert len(df) == 27
 
 
 @pytest.mark.parametrize("body", [

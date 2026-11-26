@@ -1,7 +1,7 @@
 from economic_analyst import load_data
 from agent import run_agent
 
-df = load_data("economic_data.csv")
+df = load_data()
 
 questions = [
     "What was the average YoY growth from 2026Q1 to 2026Q3, "
