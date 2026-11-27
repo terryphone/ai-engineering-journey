@@ -5,7 +5,7 @@ __pycache__/
 *.pyc
 .env
 .streamlit/
-chroma_db/
+data/chroma_db/
 eval_results.json
 eval_case_*.json
 archives/

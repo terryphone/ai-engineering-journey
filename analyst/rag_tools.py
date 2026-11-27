@@ -4,8 +4,7 @@ from pathlib import Path
 
 import chromadb
 
-REPORTS_DIR = Path(__file__).resolve().parent / "reports"
-INDEX_DIR = Path(__file__).resolve().parent / "chroma_db"
+from analyst.paths import INDEX_DIR, REPORTS_DIR
 COLLECTION_NAME = "economic_reports"
 MAX_RESULTS = 4
 MAX_CHUNK_CHARS = 1000  # short reports stay in one piece

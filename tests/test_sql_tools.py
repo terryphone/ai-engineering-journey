@@ -2,9 +2,9 @@ import sqlite3
 
 import pytest
 
-import sql_tools
-from build_database import build_database
-from sql_tools import run_sql_query
+from analyst import sql_tools
+from analyst.build_database import build_database
+from analyst.sql_tools import run_sql_query
 
 
 @pytest.fixture

@@ -1,5 +1,5 @@
-from agent_core import run_tool_agent
-from sql_tools import run_sql_query
+from analyst.agent_core import run_tool_agent
+from analyst.sql_tools import run_sql_query
 
 MAX_ROUNDS = 6      # tool-calling rounds before we stop the agent
 MEMORY_TURNS = 6    # remember the last 6 question/answer pairs

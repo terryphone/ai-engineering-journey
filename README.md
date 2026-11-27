@@ -8,7 +8,8 @@ A Streamlit app that analyses quarterly economic data and lets you ask questions
 
 ## Features
 
-- **Data validation:** checks the CSV for missing quarters, duplicates, non-positive values and too little history.
+- **One source of truth:** the dashboard, the chat and all three agents read the same SQLite database, so every page reports the same figures. A test checks that the dashboard's growth matches the SQL view.
+- **Data validation:** checks the GDP data for missing quarters, duplicates, non-positive values and too little history.
 - **GDP metrics and chart:** latest GDP, year-on-year (YoY) growth, change in growth, and a growth trend chart.
 - **AI commentary:** generates a short economic commentary and key observation. The app checks that the model's quarter and growth figures match the calculated ones, and rejects the output if they don't.
 - **Chat with your data:** an agent that answers questions using tool calling.
@@ -43,11 +44,11 @@ All three agents share this loop (`agent_core.run_tool_agent`) and differ only i
 
 | Agent | Data | Tools |
 |---|---|---|
-| CSV agent (`agent.py`) | `economic_data.csv`, 7 quarters | pandas functions below |
+| Dashboard agent (`agent.py`) | `economy.db` GDP, loaded into pandas | pandas functions below |
 | SQL agent (`sql_agent.py`) | `economy.db`, 27 quarters | `run_sql_query` |
 | Research agent (`research_agent.py`) | `economy.db` + `reports/` | `run_sql_query`, `search_reports` |
 
-### CSV agent tools
+### Dashboard agent tools
 
 | Tool | What it does |
 |---|---|
@@ -62,28 +63,35 @@ All three agents share this loop (`agent_core.run_tool_agent`) and differ only i
 ## Project structure
 
 ```
-app.py                  Streamlit dashboard and CSV chat (main page)
-api.py                  FastAPI REST API for the agents and metrics
-Dockerfile              Container image for the API
-pages/1_SQL_Agent.py    SQL agent page
-pages/2_Research_Agent.py  Research agent page
-agent_core.py           Shared agent loop: memory, multi-step tool calling, trace
-agent.py                CSV agent (prompt + pandas tools)
-analyst_tools.py        Pandas tool functions and their schemas
-sql_agent.py            SQL agent (prompt, schema description, tool schema)
-sql_tools.py            Safe read-only run_sql_query
-research_agent.py       Research agent with source check and retry
-rag_tools.py            Report chunking and search_reports (ChromaDB)
-grounding.py            Checks citations, quotations and percentages against tool results
-economic_analyst.py     Data loading, validation, growth stats, AI commentary
-ai_config.py            LLM client and model settings
-economic_data.csv       Synthetic quarterly GDP data (CSV agent)
-build_database.py       Generates economy.db (fixed seed)
-make_reports.py         Generates reports/*.md
-build_index.py          Builds the ChromaDB index in chroma_db/
-test_*.py               Offline tests (no API calls)
-try_*.py                Manual end-to-end checks against the live API
-archives/               Earlier learning exercises
+app.py                     Streamlit dashboard and chat (main page)
+api.py                     FastAPI REST API for the agents and metrics
+pages/                     Extra Streamlit pages: SQL agent, Research agent
+Dockerfile                 Container image for the API
+
+analyst/                   The library: everything the apps import
+  agent_core.py            Shared agent loop: memory, multi-step tool calling, trace
+  agent.py                 Dashboard agent (prompt + pandas tools)
+  analyst_tools.py         Pandas tool functions and their schemas
+  sql_agent.py             SQL agent (prompt, schema description, tool schema)
+  sql_tools.py             Safe read-only run_sql_query
+  research_agent.py        Research agent with source check and retry
+  rag_tools.py             Report chunking and search_reports (ChromaDB)
+  grounding.py             Checks citations, quotations and percentages
+  economic_analyst.py      Data loading, validation, growth stats, AI commentary
+  ai_config.py             LLM client and model settings
+  paths.py                 Where the data files live
+  build_database.py        Generates data/economy.db (fixed seed)
+  make_reports.py          Generates data/reports/*.md
+
+data/
+  economy.db               Synthetic economy database (generated, committed)
+  reports/                 Synthetic economic reports (generated, committed)
+  chroma_db/               Vector index of the reports (generated, not committed)
+
+tests/                     Offline tests (no API calls)
+scripts/                   build_index, evaluate and try_* scripts
+docs/screenshots/          README images
+archives/                  Earlier learning exercises
 ```
 
 ## Setup
@@ -95,18 +103,18 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Generate the data (economy.db is committed; chroma_db/ is not)
-python build_database.py    # -> economy.db
-python make_reports.py      # -> reports/*.md
-python build_index.py       # -> chroma_db/
+# Generate the data (economy.db and reports are committed; the index is not)
+python -m analyst.build_database   # -> data/economy.db
+python -m analyst.make_reports     # -> data/reports/*.md
+python -m scripts.build_index      # -> data/chroma_db/
 
 export CEREBRAS_API_KEY="your-key-here"
 streamlit run app.py
 ```
 
-The SQL and Research agents appear as extra pages in the Streamlit sidebar. The Research agent needs `chroma_db/`, so run `build_index.py` first. Rebuild the index whenever the reports change. The reports' figures must match the database, so if you change `build_database.py`, update `make_reports.py` too.
+The SQL and Research agents appear as extra pages in the Streamlit sidebar. The Research agent needs the report index; the page builds it on first run, or run `python -m scripts.build_index`. Rebuild the index whenever the reports change. The reports' figures must match the database, so if you change `analyst/build_database.py`, update `analyst/make_reports.py` too.
 
-The key is read from the environment and is never stored in the repo. The LLM client uses an OpenAI-compatible API, so you can switch providers by editing `ai_config.py`.
+The key is read from the environment and is never stored in the repo. The LLM client uses an OpenAI-compatible API, so you can switch providers by editing `analyst/ai_config.py`.
 
 ## REST API
 
@@ -116,7 +124,7 @@ The key is read from the environment and is never stored in the repo. The LLM cl
 |---|---|---|---|
 | GET | `/health` | Liveness check and which data files exist | No |
 | GET | `/metrics` | Latest GDP, YoY growth and change in growth | No |
-| POST | `/ask/csv` | CSV agent | Yes |
+| POST | `/ask/dashboard` | Dashboard agent | Yes |
 | POST | `/ask/sql` | SQL agent | Yes |
 | POST | `/ask/research` | Research agent with source checks | Yes |
 
@@ -146,8 +154,8 @@ docker run -p 8000:8000 -e CEREBRAS_API_KEY="your-key-here" economic-analyst-api
 The Streamlit app can be deployed free on [Streamlit Community Cloud](https://streamlit.io/cloud):
 
 1. Sign in with GitHub and choose **Create app**, then this repository, branch `main` and main file `app.py`.
-2. Under **Advanced settings**, pick Python 3.13 and add the secret `CEREBRAS_API_KEY = "your-key-here"`. Top-level secrets are available as environment variables, which is where `ai_config.py` reads the key.
-3. Deploy. The Research agent page builds the report index on its first run, because `chroma_db/` is not committed.
+2. Under **Advanced settings**, pick Python 3.13 and add the secret `CEREBRAS_API_KEY = "your-key-here"`. Top-level secrets are available as environment variables, which is where `analyst/ai_config.py` reads the key.
+3. Deploy. The Research agent page builds the report index on its first run, because `data/chroma_db/` is not committed.
 
 Anyone with the link can use your API quota, so set a spending limit with your LLM provider.
 
@@ -168,11 +176,10 @@ pytest -q
 
 The tests run without an API key. They cover the pandas tools, the SQL safety layers, report chunking and search, the source check, the research agent's retry and refusal, the REST API, and the shared agent loop (using a fake LLM client). One test checks that the figures in the reports match the database.
 
-The `try_*.py` scripts call the live API and are named so pytest skips them. Run them directly, for example `python try_research_agent.py`.
+The scripts in `scripts/` call the live API, so pytest does not collect them. Run them as modules from the project root, for example `python -m scripts.try_research_agent` or `python -m scripts.evaluate`.
 
 ## Limitations
 
-- The CSV dataset has only 7 quarters, so YoY growth exists for just the last three. The SQL and Research agents use the larger 27-quarter database.
 - The reports are short and fictional, so the Research agent can only explain events they cover. It says so when they don't.
 - Conversation memory keeps the final answers, not the raw tool results, so an earlier mistake could carry into later turns.
 - There is no forecasting, by design.

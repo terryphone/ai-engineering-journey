@@ -14,8 +14,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY *.py economic_data.csv economy.db ./
-COPY reports/ reports/
+COPY api.py ./
+COPY analyst/ analyst/
+COPY scripts/build_index.py scripts/
+COPY data/economy.db data/
+COPY data/reports/ data/reports/
 
 # Build the report index at image build time. This also downloads
 # Chroma's local embedding model into the image, so the container
@@ -23,7 +26,7 @@ COPY reports/ reports/
 RUN useradd --create-home appuser \
     && chown -R appuser /app
 USER appuser
-RUN python build_index.py
+RUN python -m scripts.build_index
 
 EXPOSE 8000
 

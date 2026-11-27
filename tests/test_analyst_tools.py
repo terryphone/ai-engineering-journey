@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from analyst_tools import build_tools
+from analyst.analyst_tools import build_tools
 
 
 @pytest.fixture

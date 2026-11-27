@@ -1,9 +1,9 @@
 import pandas as pd
 import streamlit as st
 
-from rag_tools import INDEX_DIR, build_index
-from research_agent import run_research_agent
-from sql_tools import DB_PATH
+from analyst.rag_tools import INDEX_DIR, build_index
+from analyst.research_agent import run_research_agent
+from analyst.sql_tools import DB_PATH
 
 st.set_page_config(
     page_title="Research Agent",

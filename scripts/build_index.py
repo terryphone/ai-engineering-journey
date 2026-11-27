@@ -1,4 +1,4 @@
-from rag_tools import build_index
+from analyst.rag_tools import build_index
 
 if __name__ == "__main__":
     count = build_index()

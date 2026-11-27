@@ -8,10 +8,11 @@ A learning project: LLM agents that answer questions about **synthetic** economi
 
 ## Rules for Claude Code
 
-- Do not run `try_*.py` or anything else that calls the Cerebras API unless asked; it uses API quota.
+- Do not run `scripts/try_*.py`, `scripts/evaluate.py` or anything else that calls the Cerebras API unless asked; it uses API quota.
 - Run `pytest -q` after every change. All tests must pass before committing.
-- Never edit `reports/*.md` by hand. Change `make_reports.py` and re-run it.
-- Never commit API keys, `.env` or `chroma_db/`.
+- Never edit `data/reports/*.md` by hand. Change `analyst/make_reports.py` and re-run it.
+- Never commit API keys, `.env` or `data/chroma_db/`.
+- Take file locations from `analyst/paths.py`; do not build paths from `__file__` elsewhere.
 
 ## Commands
 
@@ -20,20 +21,22 @@ source .venv/bin/activate
 export CEREBRAS_API_KEY=...          # needed only for agents/app, not tests
 
 # Generated data (rebuild after changing the generators)
-python build_database.py             # -> economy.db (SQLite, fixed seed 42)
-python make_reports.py               # -> reports/*.md (from REPORTS dict)
-python build_index.py                # -> chroma_db/ (gitignored)
+python -m analyst.build_database     # -> data/economy.db (SQLite, fixed seed 42)
+python -m analyst.make_reports       # -> data/reports/*.md (from REPORTS dict)
+python -m scripts.build_index        # -> data/chroma_db/ (gitignored)
 
 streamlit run app.py                 # main dashboard; pages/ adds SQL + Research agents
 uvicorn api:app --reload             # REST API; docs at /docs
 docker build -t economic-analyst-api .
 
 pytest -q                            # all offline tests
-pytest test_grounding.py -q          # one file
-pytest test_rag_tools.py -k split -q # one test by name
+pytest tests/test_grounding.py -q          # one file
+pytest tests/test_rag_tools.py -k split -q # one test by name
 ```
 
-`try_*.py` scripts call the live API and are deliberately named so pytest does not collect them. Run them directly (`python try_research_agent.py`) for manual end-to-end checks.
+## Layout
+
+`app.py` and `api.py` are the entry points and stay at the root (Streamlit needs `pages/` next to `app.py`). All library code is the `analyst/` package and is imported as `from analyst.x import y`. Data is in `data/`, tests in `tests/` (`pytest.ini` sets `pythonpath = .`), and live-API scripts in `scripts/`. Run scripts and generators as modules from the root (`python -m scripts.try_research_agent`) so `analyst` is importable.
 
 ## Architecture
 
@@ -42,7 +45,7 @@ pytest test_rag_tools.py -k split -q # one test by name
 **Agent loop:** all agents use the same loop. The model calls tools until it answers, with up to `max_rounds` rounds. Then a final call with `tool_choice="none"` forces a best-effort answer. Each agent returns `(answer, trace)`, and the UI shows the trace as "Tools used". Memory keeps only the last N user/assistant turns, skipping any message flagged `is_error`. The loop lives only in `agent_core.run_tool_agent`; `agent.py`, `sql_agent.py` and `research_agent.py` are thin wrappers that pass their own prompt, tools and limits. `test_agent_core.py` covers it with a fake client.
 
 **Three agents, three data sources:**
-- `agent.py` + `analyst_tools.py`: pandas tools over `economic_data.csv` (7 quarters). Used by `app.py`.
+- `agent.py` + `analyst_tools.py`: pandas tools over quarterly GDP that `economic_analyst.load_data` reads from the `gdp_quarterly` view. Used by `app.py` (dashboard and chat) and `/ask/dashboard`. Everything reads `economy.db`, so there is one source of truth; `test_economic_analyst.py` checks the dashboard's growth matches the `gdp_growth` view.
 - `sql_agent.py` + `sql_tools.py`: text-to-SQL over `economy.db` (27 quarters, `sector_output` table plus `gdp_quarterly` / `gdp_growth` views). `run_sql_query` is safe in layers: SELECT/WITH only, a read-only URI connection, a SQLite authorizer allowlist, a 2s progress-handler timeout and a 50-row cap with a `truncated` flag. Keep all of these layers.
 - `research_agent.py`: SQL tools plus `search_reports` (`rag_tools.py`, ChromaDB with its built-in local embeddings). Afterwards, `grounding.check_grounding` verifies that every `[file.md]` citation was actually retrieved, every quotation of 6+ words matches retrieved text (3-word shingles, ≥70% coverage), and every percentage matches a number in an SQL result or retrieved passage. On failure the agent retries once with the problems listed; the retry is checked only against its own trace, since it runs in a fresh conversation. If the retry also fails, it refuses rather than show an unverified answer.
 

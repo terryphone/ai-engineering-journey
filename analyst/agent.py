@@ -1,7 +1,7 @@
 import pandas as pd
 
-from agent_core import run_tool_agent
-from analyst_tools import build_tools, CHAT_TOOLS
+from analyst.agent_core import run_tool_agent
+from analyst.analyst_tools import build_tools, CHAT_TOOLS
 
 MAX_ROUNDS = 6      # tool-calling rounds before we stop the agent
 MEMORY_TURNS = 6    # remember the last 6 question/answer pairs

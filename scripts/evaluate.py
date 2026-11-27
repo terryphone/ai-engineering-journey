@@ -13,9 +13,9 @@ import sys
 import time
 from datetime import datetime
 
-import research_agent
-from grounding import CITATION, check_grounding
-from research_agent import UNVERIFIED_ANSWER, run_research_agent
+from analyst import research_agent
+from analyst.grounding import CITATION, check_grounding
+from analyst.research_agent import UNVERIFIED_ANSWER, run_research_agent
 
 # Record every attempt the research agent makes (including an answer the
 # source check rejected before the retry), without changing the agent itself.

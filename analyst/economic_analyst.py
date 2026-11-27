@@ -1,13 +1,13 @@
 
-import os
+import sqlite3
+from pathlib import Path
+
 import pandas as pd
-#from google import genai
-#from google.genai import types
-#from openai import OpenAI
-from ai_config import get_ai_client, MODEL_NAME
+from analyst.ai_config import get_ai_client, MODEL_NAME
 from pydantic import BaseModel
 
-#MODEL_NAME = "gemini-3.8-flash"
+from analyst.paths import DB_PATH
+
 # =====================================
 # 1. DEFINE AI OUTPUT STRUCTURE
 # =====================================
@@ -24,14 +24,40 @@ class EconomicReport(BaseModel):
 # 2. LOAD AND VALIDATE DATA
 # =====================================
 
-def load_data(filename):
-    df = pd.read_csv(filename)
+def load_data(db_path=None):
+    """
+    Load quarterly GDP from economy.db, the same source the SQL and
+    Research agents use, so every page reports the same figures.
+    """
+    db_path = Path(db_path or DB_PATH)
+
+    if not db_path.exists():
+        raise ValueError(f"Database not found: {db_path.name}")
+
+    conn = sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True)
+    try:
+        df = pd.read_sql_query(
+            "SELECT quarter AS Quarter, gdp AS GDP "
+            "FROM gdp_quarterly ORDER BY quarter",
+            conn,
+        )
+    except (sqlite3.Error, pd.errors.DatabaseError) as error:
+        raise ValueError(f"Could not read GDP data: {error}")
+    finally:
+        conn.close()
+
+    return validate_data(df)
+
+
+def validate_data(df):
+    """Check a Quarter/GDP table and return it sorted by quarter."""
+    df = df.copy()
 
     required = {"Quarter", "GDP"}
 
     if not required.issubset(df.columns):
         raise ValueError(
-            "CSV must contain Quarter and GDP columns"
+            "Data must contain Quarter and GDP columns"
         )
 
     if df.empty:
@@ -240,11 +266,10 @@ def save_report(report, stats, filename):
 # =====================================
 
 def main():
-    input_file = "economic_data.csv"
     output_file = "economic_report.txt"
 
     print("Loading economic data...")
-    df = load_data(input_file)
+    df = load_data()
 
     print("Calculating GDP growth...")
     stats = calculate_growth(df)

@@ -5,11 +5,9 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
-import agent
-import agent_core
-import sql_agent
-
-
+from analyst import agent
+from analyst import agent_core
+from analyst import sql_agent
 def tool_call(name, arguments, call_id="call_1"):
     return SimpleNamespace(
         id=call_id,
@@ -128,7 +126,7 @@ def capture_call(monkeypatch, module):
     return seen
 
 
-def test_csv_agent_uses_shared_loop(monkeypatch):
+def test_dashboard_agent_uses_shared_loop(monkeypatch):
     seen = capture_call(monkeypatch, agent)
     df = pd.DataFrame({"Quarter": ["2026Q1"], "GDP": [100.0]})
 

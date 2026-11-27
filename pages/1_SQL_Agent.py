@@ -1,8 +1,8 @@
 import pandas as pd
 import streamlit as st
 
-from sql_agent import run_sql_agent
-from sql_tools import DB_PATH
+from analyst.sql_agent import run_sql_agent
+from analyst.sql_tools import DB_PATH
 
 st.set_page_config(
     page_title="SQL Agent",
